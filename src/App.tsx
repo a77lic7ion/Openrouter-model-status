@@ -249,6 +249,10 @@ export default function App() {
       .slice(0, 3);
   }, [models]);
 
+  const favoriteModels = useMemo(() => {
+    return models.filter(m => favorites.includes(m.id));
+  }, [models, favorites]);
+
   const handleSaveKey = () => {
     if (tempKey.trim()) {
       localStorage.setItem("openrouter_api_key", tempKey.trim());
@@ -393,7 +397,7 @@ export default function App() {
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
                       {idx + 1}
                     </span>
-                    <h3 className="font-bold truncate pr-6">{model.name}</h3>
+                    <h3 className="font-bold truncate pr-10">{model.name}</h3>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -411,8 +415,66 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <Progress value={model.usage_pct} className="h-1.5" />
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <Progress value={model.usage_pct} className="h-1.5 flex-1" />
+                    <button 
+                      onClick={(e) => toggleFavorite(model.id, e)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all",
+                        favorites.includes(model.id) 
+                          ? "bg-yellow-500/20 text-yellow-600 border border-yellow-500/30" 
+                          : "bg-accent text-muted-foreground hover:bg-accent/80 border border-transparent"
+                      )}
+                    >
+                      <Star className={cn("w-3 h-3", favorites.includes(model.id) && "fill-yellow-500")} />
+                      {favorites.includes(model.id) ? "FAVORITE" : "ADD FAV"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Favorites Bar */}
+        {!loading && favoriteModels.length > 0 && (
+          <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-yellow-500/10 p-2 rounded-full">
+                  <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Your Favorites</h2>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Quick access to your preferred models</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {favoriteModels.map((model) => (
+                <div 
+                  key={model.id}
+                  onClick={() => setSelectedModelId(model.id)}
+                  className="relative group bg-background border border-yellow-500/10 p-4 rounded-2xl cursor-pointer hover:border-yellow-500/40 hover:shadow-lg transition-all overflow-hidden"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold truncate pr-6 text-sm">{model.name}</h3>
+                    <button 
+                      onClick={(e) => toggleFavorite(model.id, e)}
+                      className="p-1 rounded-full hover:bg-yellow-500/10 transition-colors"
+                    >
+                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {Math.round(model.latency || 0)}ms
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" /> {model.usage_pct}%
+                    </div>
                   </div>
                 </div>
               ))}
@@ -540,64 +602,123 @@ export default function App() {
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden">
                 <ScrollArea className="h-full px-4 pb-4">
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {loading ? (
                       Array.from({ length: 8 }).map((_, i) => (
                         <Skeleton key={i} className="h-16 w-full rounded-lg" />
                       ))
-                    ) : filteredModels.length > 0 ? (
-                      filteredModels.map((model) => (
-                        <div
-                          key={model.id}
-                          onClick={() => setSelectedModelId(model.id)}
-                          className={cn(
-                            "group p-3 rounded-xl border transition-all cursor-pointer hover:bg-accent/50",
-                            selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : "bg-card border-transparent"
-                          )}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className={cn(
-                                  "w-2 h-2 rounded-full shrink-0",
-                                  model.status === 'available' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]" :
-                                  model.status === 'degraded' ? "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.4)]" :
-                                  "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]"
-                                )} 
-                                title={model.status?.toUpperCase()}
-                              />
-                              <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {parseFloat(model.pricing.prompt) === 0 && (
-                                <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">FREE</Badge>
-                              )}
-                              <button 
-                                onClick={(e) => toggleFavorite(model.id, e)}
-                                className="p-1 rounded-full hover:bg-primary/10 transition-colors"
-                              >
-                                {favorites.includes(model.id) ? (
-                                  <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                                ) : (
-                                  <Star className="w-3.5 h-3.5 text-muted-foreground opacity-30 group-hover:opacity-100" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                            <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> {model.context_length.toLocaleString()} ctx</span>
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.round(model.latency || 0)}ms</span>
-                            <span className="flex items-center gap-1 ml-auto">
-                              <TrendingUp className="w-3 h-3" /> {model.usage_pct}% usage
-                            </span>
-                          </div>
-                        </div>
-                      ))
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <ZapOff className="w-12 h-12 mb-2 opacity-20" />
-                        <p className="text-sm">No models found</p>
-                      </div>
+                      <>
+                        {/* Favorites Section */}
+                        {favoriteModels.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-[10px] font-bold text-yellow-500 uppercase tracking-widest px-1">Favorites</h4>
+                            {favoriteModels.map((model) => (
+                              <div
+                                key={`fav-${model.id}`}
+                                onClick={() => setSelectedModelId(model.id)}
+                                className={cn(
+                                  "group p-3 rounded-xl border transition-all cursor-pointer hover:bg-accent/50",
+                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : "bg-card border-transparent"
+                                )}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className={cn(
+                                        "w-2 h-2 rounded-full shrink-0",
+                                        model.status === 'available' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]" :
+                                        model.status === 'degraded' ? "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.4)]" :
+                                        "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]"
+                                      )} 
+                                      title={model.status?.toUpperCase()}
+                                    />
+                                    <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {parseFloat(model.pricing.prompt) === 0 && (
+                                      <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">FREE</Badge>
+                                    )}
+                                    <button 
+                                      onClick={(e) => toggleFavorite(model.id, e)}
+                                      className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                    >
+                                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                  <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> {model.context_length.toLocaleString()} ctx</span>
+                                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.round(model.latency || 0)}ms</span>
+                                  <span className="flex items-center gap-1 ml-auto">
+                                    <TrendingUp className="w-3 h-3" /> {model.usage_pct}% usage
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="border-t border-border/50 my-4" />
+                          </div>
+                        )}
+
+                        {/* All Models Section */}
+                        <div className="space-y-2">
+                          <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+                            {favoriteModels.length > 0 ? "All Models" : "Available Models"}
+                          </h4>
+                          {filteredModels.filter(m => !favorites.includes(m.id)).length > 0 ? (
+                            filteredModels.filter(m => !favorites.includes(m.id)).map((model) => (
+                              <div
+                                key={model.id}
+                                onClick={() => setSelectedModelId(model.id)}
+                                className={cn(
+                                  "group p-3 rounded-xl border transition-all cursor-pointer hover:bg-accent/50",
+                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : "bg-card border-transparent"
+                                )}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className={cn(
+                                        "w-2 h-2 rounded-full shrink-0",
+                                        model.status === 'available' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]" :
+                                        model.status === 'degraded' ? "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.4)]" :
+                                        "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]"
+                                      )} 
+                                      title={model.status?.toUpperCase()}
+                                    />
+                                    <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {parseFloat(model.pricing.prompt) === 0 && (
+                                      <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">FREE</Badge>
+                                    )}
+                                    <button 
+                                      onClick={(e) => toggleFavorite(model.id, e)}
+                                      className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                                    >
+                                      <Star className="w-3.5 h-3.5 text-muted-foreground opacity-30 group-hover:opacity-100" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                  <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> {model.context_length.toLocaleString()} ctx</span>
+                                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.round(model.latency || 0)}ms</span>
+                                  <span className="flex items-center gap-1 ml-auto">
+                                    <TrendingUp className="w-3 h-3" /> {model.usage_pct}% usage
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            filteredModels.length === 0 && (
+                              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                                <ZapOff className="w-12 h-12 mb-2 opacity-20" />
+                                <p className="text-sm">No models found</p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 </ScrollArea>
