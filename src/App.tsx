@@ -5,6 +5,8 @@ import {
   AlertCircle, 
   BarChart3, 
   CheckCircle2, 
+  AlertTriangle,
+  XCircle,
   Clock, 
   Cpu, 
   Database, 
@@ -253,6 +255,28 @@ export default function App() {
     return models.filter(m => favorites.includes(m.id));
   }, [models, favorites]);
 
+  const getModelHealthClass = (model: Model) => {
+    if (model.status === 'unavailable') return "border-red-500/60 hover:border-red-500 bg-red-500/5 shadow-[0_0_10px_rgba(239,68,68,0.05)]";
+    if (model.status === 'degraded') return "border-yellow-500/60 hover:border-yellow-500 bg-yellow-500/5 shadow-[0_0_10px_rgba(234,179,8,0.05)]";
+    
+    const latency = model.latency || 0;
+    const usage = model.usage_pct || 0;
+    
+    if (latency > 800 || usage > 90) return "border-red-500/60 hover:border-red-500 bg-red-500/5 shadow-[0_0_10px_rgba(239,68,68,0.05)]";
+    if (latency > 400 || usage > 60) return "border-orange-500/60 hover:border-orange-500 bg-orange-500/5 shadow-[0_0_10px_rgba(249,115,22,0.05)]";
+    
+    return "border-green-500/60 hover:border-green-500 bg-green-500/5 shadow-[0_0_10px_rgba(34,197,94,0.05)]";
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'available': return <CheckCircle2 className="w-3 h-3 text-green-500" />;
+      case 'degraded': return <AlertTriangle className="w-3 h-3 text-yellow-500" />;
+      case 'unavailable': return <XCircle className="w-3 h-3 text-red-500" />;
+      default: return null;
+    }
+  };
+
   const handleSaveKey = () => {
     if (tempKey.trim()) {
       localStorage.setItem("openrouter_api_key", tempKey.trim());
@@ -387,7 +411,10 @@ export default function App() {
                 <div 
                   key={model.id}
                   onClick={() => setSelectedModelId(model.id)}
-                  className="relative group bg-background border border-primary/10 p-4 rounded-2xl cursor-pointer hover:border-primary/40 hover:shadow-lg transition-all overflow-hidden"
+                  className={cn(
+                    "relative group bg-background border p-4 rounded-2xl cursor-pointer hover:shadow-lg transition-all overflow-hidden",
+                    getModelHealthClass(model)
+                  )}
                 >
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
                     <ActivitySquare className="w-12 h-12 text-primary" />
@@ -456,7 +483,10 @@ export default function App() {
                 <div 
                   key={model.id}
                   onClick={() => setSelectedModelId(model.id)}
-                  className="relative group bg-background border border-yellow-500/10 p-4 rounded-2xl cursor-pointer hover:border-yellow-500/40 hover:shadow-lg transition-all overflow-hidden"
+                  className={cn(
+                    "relative group bg-background border p-4 rounded-2xl cursor-pointer hover:shadow-lg transition-all overflow-hidden",
+                    getModelHealthClass(model)
+                  )}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold truncate pr-6 text-sm">{model.name}</h3>
@@ -619,20 +649,12 @@ export default function App() {
                                 onClick={() => setSelectedModelId(model.id)}
                                 className={cn(
                                   "group p-3 rounded-xl border transition-all cursor-pointer hover:bg-accent/50",
-                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : "bg-card border-transparent"
+                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : getModelHealthClass(model)
                                 )}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center gap-2">
-                                    <div 
-                                      className={cn(
-                                        "w-2 h-2 rounded-full shrink-0",
-                                        model.status === 'available' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]" :
-                                        model.status === 'degraded' ? "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.4)]" :
-                                        "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]"
-                                      )} 
-                                      title={model.status?.toUpperCase()}
-                                    />
+                                    {getStatusIcon(model.status || 'available')}
                                     <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
                                   </div>
                                   <div className="flex items-center gap-1">
@@ -672,20 +694,12 @@ export default function App() {
                                 onClick={() => setSelectedModelId(model.id)}
                                 className={cn(
                                   "group p-3 rounded-xl border transition-all cursor-pointer hover:bg-accent/50",
-                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : "bg-card border-transparent"
+                                  selectedModelId === model.id ? "bg-accent border-primary/50 shadow-sm" : getModelHealthClass(model)
                                 )}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center gap-2">
-                                    <div 
-                                      className={cn(
-                                        "w-2 h-2 rounded-full shrink-0",
-                                        model.status === 'available' ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]" :
-                                        model.status === 'degraded' ? "bg-yellow-500 shadow-[0_0_6px_rgba(234,179,8,0.4)]" :
-                                        "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]"
-                                      )} 
-                                      title={model.status?.toUpperCase()}
-                                    />
+                                    {getStatusIcon(model.status || 'available')}
                                     <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
                                   </div>
                                   <div className="flex items-center gap-1">
