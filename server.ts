@@ -25,9 +25,10 @@ async function startServer() {
 
   // Proxy for OpenRouter Key Info (Usage/Limits)
   app.get("/api/key-info", async (req, res) => {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = req.headers["x-openrouter-key"] || process.env.OPENROUTER_API_KEY;
+    
     if (!apiKey) {
-      return res.status(401).json({ error: "OPENROUTER_API_KEY is not set in environment variables." });
+      return res.status(401).json({ error: "OpenRouter API Key is required." });
     }
 
     try {

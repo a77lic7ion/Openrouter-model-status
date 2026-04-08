@@ -28,7 +28,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -103,15 +103,19 @@ export default function App() {
   const [filterThinking, setFilterThinking] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [userApiKey, setUserApiKey] = useState<string | null>(localStorage.getItem("openrouter_api_key"));
+  const [tempKey, setTempKey] = useState("");
 
   const fetchData = async () => {
     // Don't set loading to true on auto-refresh to avoid UI flickering
     if (!models.length) setLoading(true);
     setError(null);
     try {
+      const headers = userApiKey ? { "X-OpenRouter-Key": userApiKey } : {};
+      
       const [modelsRes, keyRes] = await Promise.allSettled([
         axios.get("/api/models"),
-        axios.get("/api/key-info")
+        axios.get("/api/key-info", { headers })
       ]);
 
       if (modelsRes.status === 'fulfilled') {
@@ -204,6 +208,61 @@ export default function App() {
       .slice(0, 3);
   }, [models]);
 
+  const handleSaveKey = () => {
+    if (tempKey.trim()) {
+      localStorage.setItem("openrouter_api_key", tempKey.trim());
+      setUserApiKey(tempKey.trim());
+      window.location.reload();
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("openrouter_api_key");
+    setUserApiKey(null);
+    window.location.reload();
+  };
+
+  if (!userApiKey) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 font-sans">
+        <Card className="w-full max-w-md border-none shadow-2xl bg-card">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto bg-primary/10 p-3 rounded-2xl w-fit mb-2">
+              <ShieldCheck className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold">API Setup Required</CardTitle>
+            <CardDescription>
+              Please enter your OpenRouter API key to access the dashboard. 
+              Your key is stored locally in your browser.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">OpenRouter API Key</label>
+              <Input 
+                type="password" 
+                placeholder="sk-or-v1-..." 
+                className="bg-accent/30 border-none h-12"
+                value={tempKey}
+                onChange={(e) => setTempKey(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={handleSaveKey}
+              disabled={!tempKey.trim()}
+              className="w-full h-12 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              Initialize Dashboard
+            </button>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-2 text-center text-[10px] text-muted-foreground border-t bg-transparent">
+            <p>Don't have a key? Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-primary hover:underline">openrouter.ai/keys</a></p>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background text-foreground">
@@ -242,6 +301,13 @@ export default function App() {
               </div>
               <span>Last update: {lastRefresh.toLocaleTimeString()}</span>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-destructive transition-colors"
+              title="Logout / Change Key"
+            >
+              <ZapOff className="w-5 h-5" />
+            </button>
             <button 
               onClick={fetchData}
               disabled={loading}
