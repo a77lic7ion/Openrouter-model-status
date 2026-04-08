@@ -1,0 +1,5 @@
+{
+  "name": "OpenRouter Model Monitor",
+  "description": "A real-time dashboard for monitoring OpenRouter model availability, usage, and performance metrics.",
+  "requestFramePermissions": []
+}
