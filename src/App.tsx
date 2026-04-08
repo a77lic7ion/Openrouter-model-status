@@ -15,7 +15,11 @@ import {
   TrendingUp,
   TrendingDown,
   ShieldCheck,
-  ZapOff
+  ZapOff,
+  Star,
+  StarOff,
+  GitFork,
+  ActivitySquare
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -26,7 +30,10 @@ import {
   Tooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +95,16 @@ const generateSimulatedData = (baseLatency: number = 500) => {
     time: `${i}:00`,
     latency: Math.max(100, baseLatency + (Math.random() - 0.5) * 200),
     throughput: Math.max(10, 50 + (Math.random() - 0.5) * 30),
+    reliability: 95 + Math.random() * 5,
+  }));
+};
+
+const generateFallbackData = () => {
+  const providers = ['OpenAI', 'Anthropic', 'Google', 'Meta', 'Mistral'];
+  return providers.map(p => ({
+    name: p,
+    success: Math.floor(70 + Math.random() * 30),
+    fallback: Math.floor(Math.random() * 20),
   }));
 };
 
@@ -105,6 +122,19 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [userApiKey, setUserApiKey] = useState<string | null>(localStorage.getItem("openrouter_api_key"));
   const [tempKey, setTempKey] = useState("");
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = localStorage.getItem("openrouter_favorites");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const next = prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id];
+      localStorage.setItem("openrouter_favorites", JSON.stringify(next));
+      return next;
+    });
+  };
 
   const fetchData = async () => {
     // Don't set loading to true on auto-refresh to avoid UI flickering
@@ -179,7 +209,7 @@ export default function App() {
   }, []);
 
   const filteredModels = useMemo(() => {
-    return models.filter(model => {
+    const filtered = models.filter(model => {
       const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            model.id.toLowerCase().includes(searchQuery.toLowerCase());
       const isFree = parseFloat(model.pricing.prompt) === 0 && parseFloat(model.pricing.completion) === 0;
@@ -191,7 +221,16 @@ export default function App() {
 
       return matchesSearch && matchesFree && matchesReasoning && matchesImage && matchesThinking;
     });
-  }, [models, searchQuery, showFreeOnly, filterReasoning, filterImage, filterThinking]);
+
+    // Sort: Favorites first, then by name
+    return [...filtered].sort((a, b) => {
+      const aFav = favorites.includes(a.id);
+      const bFav = favorites.includes(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [models, searchQuery, showFreeOnly, filterReasoning, filterImage, filterThinking, favorites]);
 
   const selectedModel = useMemo(() => {
     return models.find(m => m.id === selectedModelId) || filteredModels[0];
@@ -200,6 +239,8 @@ export default function App() {
   const simulatedHistory = useMemo(() => {
     return generateSimulatedData(selectedModel ? 400 : 500);
   }, [selectedModel?.id]);
+
+  const fallbackData = useMemo(() => generateFallbackData(), [selectedModel?.id]);
 
   const topRecommendations = useMemo(() => {
     return [...models]
@@ -323,31 +364,56 @@ export default function App() {
       <main className="container py-6 px-4 md:px-8 space-y-8">
         {/* Top Recommendations Bar */}
         {!loading && topRecommendations.length > 0 && (
-          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 p-2 rounded-full">
-                <Zap className="w-5 h-5 text-primary" />
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2 rounded-full">
+                  <Zap className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Quick Pick: Top 3 Available Models</h2>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Optimized for reliability and speed</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-bold">Quick Pick: Top 3 Available Models</h2>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Lowest latency & highest reliability right now</p>
-              </div>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">LIVE METRICS</Badge>
             </div>
-            <div className="flex flex-wrap justify-center gap-3">
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {topRecommendations.map((model, idx) => (
                 <div 
                   key={model.id}
                   onClick={() => setSelectedModelId(model.id)}
-                  className="flex items-center gap-3 bg-background border border-primary/10 px-4 py-2 rounded-xl cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all group"
+                  className="relative group bg-background border border-primary/10 p-4 rounded-2xl cursor-pointer hover:border-primary/40 hover:shadow-lg transition-all overflow-hidden"
                 >
-                  <span className="text-xs font-bold text-primary/40">0{idx + 1}</span>
-                  <div>
-                    <p className="text-xs font-bold group-hover:text-primary transition-colors">{model.name}</p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {Math.round(model.latency || 0)}ms
-                    </p>
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <ActivitySquare className="w-12 h-12 text-primary" />
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                  
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                      {idx + 1}
+                    </span>
+                    <h3 className="font-bold truncate pr-6">{model.name}</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Latency</p>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                        <Clock className="w-3.5 h-3.5" /> {Math.round(model.latency || 0)}ms
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Current Load</p>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-orange-500">
+                        <TrendingUp className="w-3.5 h-3.5" /> {model.usage_pct}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <Progress value={model.usage_pct} className="h-1.5" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -500,11 +566,23 @@ export default function App() {
                                 )} 
                                 title={model.status?.toUpperCase()}
                               />
-                              <h3 className="text-sm font-semibold truncate max-w-[150px]">{model.name}</h3>
+                              <h3 className="text-sm font-semibold truncate max-w-[130px]">{model.name}</h3>
                             </div>
-                            {parseFloat(model.pricing.prompt) === 0 && (
-                              <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">FREE</Badge>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {parseFloat(model.pricing.prompt) === 0 && (
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-500/10 text-green-600 border-green-500/20">FREE</Badge>
+                              )}
+                              <button 
+                                onClick={(e) => toggleFavorite(model.id, e)}
+                                className="p-1 rounded-full hover:bg-primary/10 transition-colors"
+                              >
+                                {favorites.includes(model.id) ? (
+                                  <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                                ) : (
+                                  <Star className="w-3.5 h-3.5 text-muted-foreground opacity-30 group-hover:opacity-100" />
+                                )}
+                              </button>
+                            </div>
                           </div>
                           <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                             <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> {model.context_length.toLocaleString()} ctx</span>
@@ -614,7 +692,7 @@ export default function App() {
                     <Card className="border-none shadow-sm">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          Latency Trend (24h)
+                          Latency & Reliability Trend (24h)
                           <Badge variant="outline" className="text-[10px] font-normal">Simulated</Badge>
                         </CardTitle>
                       </CardHeader>
@@ -627,6 +705,10 @@ export default function App() {
                                   <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4}/>
                                   <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
                                 </linearGradient>
+                                <linearGradient id="colorReliability" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                               <XAxis 
@@ -637,10 +719,20 @@ export default function App() {
                                 interval={3}
                               />
                               <YAxis 
+                                yAxisId="left"
                                 axisLine={false} 
                                 tickLine={false} 
                                 tick={{fontSize: 10, fill: 'var(--muted-foreground)'}}
                                 tickFormatter={(val) => `${val}ms`}
+                              />
+                              <YAxis 
+                                yAxisId="right"
+                                orientation="right"
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{fontSize: 10, fill: 'var(--muted-foreground)'}}
+                                tickFormatter={(val) => `${val}%`}
+                                domain={[90, 100]}
                               />
                               <Tooltip 
                                 contentStyle={{ 
@@ -653,12 +745,24 @@ export default function App() {
                                 itemStyle={{ color: 'var(--primary)' }}
                               />
                               <Area 
+                                yAxisId="left"
                                 type="monotone" 
                                 dataKey="latency" 
                                 stroke="var(--primary)" 
                                 strokeWidth={2}
                                 fillOpacity={1} 
                                 fill="url(#colorLatency)" 
+                                name="Latency (ms)"
+                              />
+                              <Area 
+                                yAxisId="right"
+                                type="monotone" 
+                                dataKey="reliability" 
+                                stroke="#10b981" 
+                                strokeWidth={2}
+                                fillOpacity={1} 
+                                fill="url(#colorReliability)" 
+                                name="Reliability (%)"
                               />
                             </AreaChart>
                           </ResponsiveContainer>
@@ -669,10 +773,45 @@ export default function App() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Card className="border-none shadow-sm">
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">Throughput (Tokens/sec)</CardTitle>
+                          <CardTitle className="text-sm font-medium flex items-center gap-2">
+                            <GitFork className="w-4 h-4 text-primary" /> Tool Fallback Success Rate
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="h-[150px] w-full">
+                          <div className="h-[200px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={fallbackData} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                                <XAxis type="number" hide />
+                                <YAxis 
+                                  dataKey="name" 
+                                  type="category" 
+                                  axisLine={false} 
+                                  tickLine={false} 
+                                  tick={{fontSize: 10, fill: 'var(--muted-foreground)'}}
+                                />
+                                <Tooltip 
+                                  cursor={{fill: 'transparent'}}
+                                  contentStyle={{ 
+                                    backgroundColor: 'var(--card)', 
+                                    borderColor: 'var(--border)',
+                                    borderRadius: '8px',
+                                    fontSize: '12px'
+                                  }}
+                                />
+                                <Bar dataKey="success" stackId="a" fill="var(--primary)" radius={[0, 0, 0, 0]} barSize={12} name="Success" />
+                                <Bar dataKey="fallback" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={12} name="Fallback" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-none shadow-sm">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">Throughput & Token Efficiency</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-[200px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <LineChart data={simulatedHistory}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -694,12 +833,23 @@ export default function App() {
                                   stroke="#10b981" 
                                   strokeWidth={2} 
                                   dot={false} 
+                                  name="Tokens/sec"
+                                />
+                                <Line 
+                                  type="stepAfter" 
+                                  dataKey="reliability" 
+                                  stroke="var(--primary)" 
+                                  strokeWidth={1} 
+                                  strokeDasharray="5 5"
+                                  dot={false} 
+                                  name="Efficiency"
                                 />
                               </LineChart>
                             </ResponsiveContainer>
                           </div>
                         </CardContent>
                       </Card>
+                    </div>
                       <Card className="border-none shadow-sm">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium">Uptime Status</CardTitle>
@@ -726,8 +876,7 @@ export default function App() {
                           </p>
                         </CardContent>
                       </Card>
-                    </div>
-                  </TabsContent>
+                    </TabsContent>
 
                   <TabsContent value="details" className="mt-4">
                     <Card className="border-none shadow-sm">
